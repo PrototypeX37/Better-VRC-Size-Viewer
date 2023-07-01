@@ -1,5 +1,5 @@
 # Better-VRC-Size-Viewer
-A revised, recoded VRC-Size Viewer and optimiser.
+A revised, recoded VRC-Size Viewer and optimizer.
 
 This script does the following:
 
@@ -10,7 +10,7 @@ This script does the following:
 - Adjust the processing speed of compressino
 - Change the resolution of textures (Soon)
 
-- Optimise meshes
+- Optimize meshes
 
 
 
