@@ -115,27 +115,135 @@ public class Lunarstools : EditorWindow
 		
 		
     }
-	private void OptimizeMeshes()
+
+private void OptimizeMeshes()
+{
+    GameObject[] allObjects = GameObject.FindObjectsOfType<GameObject>();
+
+    // Create a dictionary to store material-texture pairs
+    Dictionary<Material, Texture2D> materialTextureDict = new Dictionary<Material, Texture2D>();
+
+    foreach (GameObject obj in allObjects)
     {
-        GameObject[] allObjects = GameObject.FindObjectsOfType<GameObject>();
+        MeshFilter[] meshFilters = obj.GetComponentsInChildren<MeshFilter>();
 
-        foreach (GameObject obj in allObjects)
+        foreach (MeshFilter meshFilter in meshFilters)
         {
-            MeshFilter[] meshFilters = obj.GetComponentsInChildren<MeshFilter>();
+            Mesh mesh = meshFilter.sharedMesh;
 
-            foreach (MeshFilter meshFilter in meshFilters)
+            if (mesh != null)
             {
-                Mesh mesh = meshFilter.sharedMesh;
+                // Perform vertex optimization
+                mesh.Optimize();
 
-                if (mesh != null)
+                // Perform triangle optimization
+                int[] triangles = mesh.triangles;
+                mesh.triangles = triangles;
+
+                // Perform submesh optimization
+                int submeshCount = mesh.subMeshCount;
+                for (int i = 0; i < submeshCount; i++)
                 {
-                    MeshUtility.Optimize(mesh);
+                    int[] submeshTriangles = mesh.GetTriangles(i);
+                    mesh.SetTriangles(submeshTriangles, i);
                 }
+
+                // Perform vertex cache optimization
+                mesh.UploadMeshData(true);
+
+                // Perform readability and memory optimization
+                mesh.RecalculateBounds();
+                mesh.RecalculateNormals();
+
+                // Check if the material has already been processed
+                Material[] materials = meshFilter.GetComponent<Renderer>().sharedMaterials;
+                foreach (Material material in materials)
+                {
+                    if (!materialTextureDict.ContainsKey(material))
+                    {
+                        // Create a texture atlas for the material
+                        Texture2D atlasTexture = CreateTextureAtlas(material, meshFilter);
+                        materialTextureDict.Add(material, atlasTexture);
+                    }
+                }
+
+                // Apply the texture atlas to the materials
+                ApplyTextureAtlas(meshFilter, materialTextureDict);
             }
         }
-
-        Debug.Log("Mesh optimization complete!");
     }
+
+    Debug.Log("Mesh optimization complete!");
+}
+
+private Texture2D CreateTextureAtlas(Material material, MeshFilter meshFilter)
+{
+    // Get the main texture used by the material
+    Texture texture = material.GetTexture("_MainTex");
+
+    // Convert the texture to Texture2D
+    Texture2D texture2D = ConvertToTexture2D(texture);
+
+    // Calculate the size of the texture atlas based on the texture
+    int atlasWidth = texture2D.width;
+    int atlasHeight = texture2D.height;
+
+    // Create a new texture atlas
+    Texture2D atlasTexture = new Texture2D(atlasWidth, atlasHeight);
+
+    // Pack the texture into the atlas
+    Rect[] uvs = atlasTexture.PackTextures(new Texture2D[] { texture2D }, 0);
+
+    // Assign the texture atlas to the material
+    material.mainTexture = atlasTexture;
+
+    // Update the UVs of the mesh to use the packed texture coordinates
+    Mesh mesh = meshFilter.sharedMesh;
+    Vector2[] meshUVs = new Vector2[uvs.Length * 4];
+    for (int i = 0; i < uvs.Length; i++)
+    {
+        Rect uv = uvs[i];
+        meshUVs[i * 4 + 0] = new Vector2(uv.xMin, uv.yMin);
+        meshUVs[i * 4 + 1] = new Vector2(uv.xMin, uv.yMax);
+        meshUVs[i * 4 + 2] = new Vector2(uv.xMax, uv.yMax);
+        meshUVs[i * 4 + 3] = new Vector2(uv.xMax, uv.yMin);
+    }
+    mesh.uv = meshUVs;
+
+    // Return the created atlas texture
+    return atlasTexture;
+}
+
+private Texture2D ConvertToTexture2D(Texture texture)
+{
+    Texture2D texture2D = new Texture2D(texture.width, texture.height, TextureFormat.RGBA32, false);
+    RenderTexture previous = RenderTexture.active;
+    RenderTexture temporary = RenderTexture.GetTemporary(texture.width, texture.height, 0, RenderTextureFormat.Default, RenderTextureReadWrite.Linear);
+    Graphics.Blit(texture, temporary);
+    RenderTexture.active = temporary;
+    texture2D.ReadPixels(new Rect(0, 0, temporary.width, temporary.height), 0, 0);
+    texture2D.Apply();
+    RenderTexture.active = previous;
+    RenderTexture.ReleaseTemporary(temporary);
+    return texture2D;
+}
+
+private void ApplyTextureAtlas(MeshFilter meshFilter, Dictionary<Material, Texture2D> materialTextureDict)
+{
+    // Get the materials used by the mesh
+    Material[] materials = meshFilter.GetComponent<Renderer>().sharedMaterials;
+
+    // Assign the texture atlas to the materials
+    for (int i = 0; i < materials.Length; i++)
+    {
+        Material material = materials[i];
+        if (materialTextureDict.ContainsKey(material))
+        {
+            material.mainTexture = materialTextureDict[material];
+        }
+    }
+}
+
 
 	private void OpenCompressionWindow()
 	{
