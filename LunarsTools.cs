@@ -139,7 +139,7 @@ public class Lunarstools : EditorWindow
 
 	private void OpenCompressionWindow()
 	{
-		TextureCompressionWindow window = EditorWindow.GetWindow<TextureCompressionWindow>("Texture Compression");
+		TextureCruncher window = EditorWindow.GetWindow<TextureCruncher>("Texture Compression");
 			
 	}
 
@@ -212,16 +212,23 @@ public class Lunarstools : EditorWindow
 
 }
 
-public class TextureCompressionWindow : EditorWindow
+public class TextureCruncher : EditorWindow
 {
+    #region Variables
+
     int compressionQuality = 75;
     int processingSpeed = 10;
+    int resolutionIndex = 0;
 
     IEnumerator jobRoutine;
     IEnumerator messageRoutine;
 
     float progressCount = 0f;
     float totalCount = 1f;
+
+    #endregion
+
+    #region Properties
 
     float NormalizedProgress
     {
@@ -238,19 +245,33 @@ public class TextureCompressionWindow : EditorWindow
         get { return Progress.ToString("0.00") + "%"; }
     }
 
-    [MenuItem("Window/LunarsTools/Texture Compression")]
-    public static void OpenWindow()
+    #endregion
+
+    #region Script Lifecycle
+
+    [MenuItem("Window/Lunar's Texture Cruncher")]
+    static void Init()
     {
-        TextureCompressionWindow window = GetWindow<TextureCompressionWindow>("Texture Compression");
+        var window = (TextureCruncher)EditorWindow.GetWindow(typeof(TextureCruncher));
         window.Show();
+    }
+
+    void Update()
+    {
+        Repaint();
     }
 
     void OnGUI()
     {
-        EditorGUILayout.LabelField("Texture Compression", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("Texture Cruncher", EditorStyles.boldLabel);
 
-        compressionQuality = EditorGUILayout.IntSlider("Compression Quality", compressionQuality, 0, 100);
-        processingSpeed = EditorGUILayout.IntSlider("Processing Speed", processingSpeed, 1, 20);
+        compressionQuality = EditorGUILayout.IntSlider("Compression quality:", compressionQuality, 0, 100);
+        processingSpeed = EditorGUILayout.IntSlider("Processing speed:", processingSpeed, 1, 20);
+
+        string[] resolutionOptions = { "256x256", "512x512", "1024x1024", "2048x2048", "4096x4096", "8192x8192" };
+        int selectedResolutionIndex = Mathf.Clamp(resolutionIndex, 0, resolutionOptions.Length - 1);
+        selectedResolutionIndex = EditorGUILayout.Popup("Texture Resolution:", selectedResolutionIndex, resolutionOptions);
+        resolutionIndex = selectedResolutionIndex;
 
         string buttonLabel = jobRoutine != null ? "Cancel" : "Begin";
         if (GUILayout.Button(buttonLabel))
@@ -269,92 +290,130 @@ public class TextureCompressionWindow : EditorWindow
         if (jobRoutine != null)
         {
             EditorGUILayout.BeginHorizontal();
+
             EditorGUILayout.PrefixLabel(FormattedProgress);
-            Rect rect = EditorGUILayout.GetControlRect();
+
+            var rect = EditorGUILayout.GetControlRect();
             rect.width = rect.width * NormalizedProgress;
             GUI.Box(rect, GUIContent.none);
+
             EditorGUILayout.EndHorizontal();
         }
-        else if (!string.IsNullOrEmpty(message))
+        else if (!string.IsNullOrEmpty(_message))
         {
-            EditorGUILayout.HelpBox(message, MessageType.None);
+            EditorGUILayout.HelpBox(_message, MessageType.None);
         }
     }
-
-    void Update()
-    {
-        Repaint();
-    }
-
-    IEnumerator DisplayMessage(string message, float duration)
-    {
-        if (duration <= 0f || string.IsNullOrEmpty(message))
-            yield break;
-
-        messageRoutine = null;
-        message = message;
-
-        while (duration > 0f)
-        {
-            duration -= Time.deltaTime;
-            yield return null;
-        }
-
-        message = string.Empty;
-    }
-
-    IEnumerator CrunchTextures()
-    {
-        message = string.Empty;
-
-        IEnumerable<TextureImporter> textureImporters = AssetDatabase.FindAssets("t:texture")
-            .Select(guid => AssetDatabase.LoadAssetAtPath<TextureImporter>(AssetDatabase.GUIDToAssetPath(guid)))
-            .Where(importer => importer != null && (importer.compressionQuality != compressionQuality || !importer.crunchedCompression));
-
-        totalCount = textureImporters.Count();
-        progressCount = 0f;
-
-        foreach (TextureImporter importer in textureImporters)
-        {
-            progressCount += 1f;
-
-            importer.compressionQuality = compressionQuality;
-            importer.crunchedCompression = true;
-            AssetDatabase.ImportAsset(importer.assetPath);
-
-            if (processingSpeed > 1)
-                yield return new WaitForSeconds(1f / processingSpeed);
-        }
-
-        messageRoutine = DisplayMessage("Texture compression complete!", 2f);
-        jobRoutine = null;
-    }
-
-    private string message = string.Empty;
 
     void OnEnable()
     {
-        EditorApplication.update += UpdateCallback;
+        EditorApplication.update += HandleCallbackFunction;
     }
 
     void OnDisable()
     {
-        EditorApplication.update -= UpdateCallback;
+        EditorApplication.update -= HandleCallbackFunction;
+        EditorUtility.ClearProgressBar();
     }
 
-    void UpdateCallback()
+    #endregion
+
+    void HandleCallbackFunction()
     {
         if (jobRoutine != null && !jobRoutine.MoveNext())
         {
+            EditorUtility.ClearProgressBar();
             jobRoutine = null;
         }
 
         if (messageRoutine != null && !messageRoutine.MoveNext())
         {
             messageRoutine = null;
-            message = string.Empty;
         }
     }
+
+    #region Logic
+
+    string _message = null;
+
+    IEnumerator DisplayMessage(string message, float duration = 0f)
+    {
+        if (duration <= 0f || string.IsNullOrEmpty(message))
+            goto Exit;
+
+        _message = message;
+
+        while (duration > 0)
+        {
+            duration -= 0.01667f;
+            yield return null;
+        }
+
+    Exit:
+        _message = string.Empty;
+    }
+
+    IEnumerator CrunchTextures()
+    {
+        DisplayMessage(string.Empty);
+
+        var assets = AssetDatabase.FindAssets("t:texture", null).Select(o => AssetImporter.GetAtPath(AssetDatabase.GUIDToAssetPath(o)) as TextureImporter);
+        var eligibleAssets = assets.Where(o => o != null).Where(o => o.compressionQuality != compressionQuality || !o.crunchedCompression);
+
+        totalCount = (float)eligibleAssets.Count();
+        progressCount = 0f;
+
+        int quality = compressionQuality;
+        int limiter = processingSpeed;
+        foreach (var textureImporter in eligibleAssets)
+        {
+            progressCount += 1f;
+
+            textureImporter.compressionQuality = quality;
+            textureImporter.crunchedCompression = true;
+
+            // Set texture resolution based on selected index
+            switch (resolutionIndex)
+            {
+                case 0:
+                    textureImporter.maxTextureSize = 256;
+                    break;
+                case 1:
+                    textureImporter.maxTextureSize = 512;
+                    break;
+                case 2:
+                    textureImporter.maxTextureSize = 1024;
+                    break;
+                case 3:
+                    textureImporter.maxTextureSize = 2048;
+                    break;
+                case 4:
+                    textureImporter.maxTextureSize = 4096;
+                    break;
+                case 5:
+                    textureImporter.maxTextureSize = 8192;
+                    break;
+                default:
+                    textureImporter.maxTextureSize = 1024; // Default resolution
+                    break;
+            }
+
+            AssetDatabase.ImportAsset(textureImporter.assetPath);
+
+            limiter -= 1;
+            if (limiter <= 0)
+            {
+                yield return null;
+                limiter = processingSpeed;
+            }
+        }
+
+        messageRoutine = DisplayMessage("Crunching complete!", 6f);
+        jobRoutine = null;
+    }
+
+    #endregion
 }
+
 
 #endif
