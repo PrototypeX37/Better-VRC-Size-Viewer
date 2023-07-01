@@ -12,6 +12,9 @@ This script does the following:
 
 - Optimise meshes
 
+
+
+------------------------------------------------------------------------------
   The mesh optimiser does the following:
 
 - Vertex Optimization: The method performs vertex optimization, which involves merging identical vertices that share the same position, normal, and UV coordinates. This reduces the number of unique vertices in the mesh, leading to memory savings and improved rendering performance.
