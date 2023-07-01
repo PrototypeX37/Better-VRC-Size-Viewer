@@ -8,7 +8,7 @@ This script does the following:
 - Allows you to crunch all textures quality using crunch compression.
 - Adjust the quality of compression
 - Adjust the processing speed of compressino
-- Change the resolution of textures (Soon)
+- Change the resolution of textures
 
 - Optimize meshes
 
