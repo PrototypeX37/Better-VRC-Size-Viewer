@@ -268,7 +268,7 @@ public class TextureCruncher : EditorWindow
         compressionQuality = EditorGUILayout.IntSlider("Compression quality:", compressionQuality, 0, 100);
         processingSpeed = EditorGUILayout.IntSlider("Processing speed:", processingSpeed, 1, 20);
 
-        string[] resolutionOptions = { "256x256", "512x512", "1024x1024", "2048x2048", "4096x4096", "8192x8192" };
+        string[] resolutionOptions = { "No Change", "256x256", "512x512", "1024x1024", "2048x2048", "4096x4096", "8192x8192" };
         int selectedResolutionIndex = Mathf.Clamp(resolutionIndex, 0, resolutionOptions.Length - 1);
         selectedResolutionIndex = EditorGUILayout.Popup("Texture Resolution:", selectedResolutionIndex, resolutionOptions);
         resolutionIndex = selectedResolutionIndex;
@@ -376,26 +376,29 @@ public class TextureCruncher : EditorWindow
             switch (resolutionIndex)
             {
                 case 0:
-                    textureImporter.maxTextureSize = 256;
-                    break;
-                case 1:
-                    textureImporter.maxTextureSize = 512;
-                    break;
-                case 2:
-                    textureImporter.maxTextureSize = 1024;
-                    break;
-                case 3:
-                    textureImporter.maxTextureSize = 2048;
-                    break;
-                case 4:
-                    textureImporter.maxTextureSize = 4096;
-                    break;
-                case 5:
-                    textureImporter.maxTextureSize = 8192;
-                    break;
-                default:
-                    textureImporter.maxTextureSize = 1024; // Default resolution
-                    break;
+						// No Change
+					break;
+				case 1:
+					textureImporter.maxTextureSize = 256;
+					break;
+				case 2:
+					textureImporter.maxTextureSize = 512;
+					break;
+				case 3:
+					textureImporter.maxTextureSize = 1024;
+					break;
+				case 4:
+					textureImporter.maxTextureSize = 2048;
+					break;
+				case 5:
+					textureImporter.maxTextureSize = 4096;
+					break;
+				case 6:
+					textureImporter.maxTextureSize = 8192;
+					break;
+				default:
+					textureImporter.maxTextureSize = 1024; // Default resolution
+					break;
             }
 
             AssetDatabase.ImportAsset(textureImporter.assetPath);
